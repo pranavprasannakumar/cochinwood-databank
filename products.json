@@ -1,0 +1,50 @@
+{
+  "last_updated": "2025-08-11",
+  "items": [
+    {
+      "product": "Film Faced Plywood",
+      "face_veneer": "Gurjan",
+      "thickness_mm": 18,
+      "core_material": "Eucalyptus",
+      "glue": "WBP",
+      "weight_per_board_kg": 32,
+      "chemical_dipping": "Yes",
+      "film_face_color": "Brown",
+      "film_face_gsm": 220,
+      "wire_mesh": "No",
+      "grade": "A",
+      "rate": 1650,
+      "currency": "INR"
+    },
+    {
+      "product": "Shuttering Plywood",
+      "face_veneer": "Keruing",
+      "thickness_mm": 12,
+      "core_material": "Poplar",
+      "glue": "MR",
+      "weight_per_board_kg": 21,
+      "chemical_dipping": "No",
+      "film_face_color": "Black",
+      "film_face_gsm": 180,
+      "wire_mesh": "No",
+      "grade": "B",
+      "rate": 1025,
+      "currency": "INR"
+    },
+    {
+      "product": "Marine Plywood",
+      "face_veneer": "Okoume",
+      "thickness_mm": 16,
+      "core_material": "Eucalyptus",
+      "glue": "BWP",
+      "weight_per_board_kg": 28,
+      "chemical_dipping": "Yes",
+      "film_face_color": "",
+      "film_face_gsm": "",
+      "wire_mesh": "No",
+      "grade": "Premium",
+      "rate": 1890,
+      "currency": "INR"
+    }
+  ]
+}
