@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cochinwood — Sales Rate Databank</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="description" content="Fast, searchable rate databank for sales managers" />
+  </head>
+  <body class="bg-slate-50 text-slate-900">
+    <header class="bg-gradient-to-r from-emerald-500 to-cyan-600 text-white">
+      <div class="max-w-7xl mx-auto px-6 py-6">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Cochinwood — Sales Rate Databank</h1>
+        <p class="opacity-90">Search and filter product rates. Mobile friendly. </p>
+        <p id="lastUpdated" class="text-sm opacity-80 mt-1"></p>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-4">
+      <!-- Controls -->
+      <section class="bg-white rounded-2xl shadow border px-4 py-4 md:px-6 md:py-5">
+        <div class="grid md:grid-cols-6 gap-3">
+          <div class="md:col-span-2">
+            <label class="text-sm font-medium">Search</label>
+            <input id="search" type="search" placeholder="Search anything…" class="mt-1 w-full rounded-xl border px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <label class="text-sm font-medium">Product</label>
+            <select id="filterProduct" class="mt-1 w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-emerald-500"></select>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Face Veneer</label>
+            <select id="filterFace" class="mt-1 w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-emerald-500"></select>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Core Material</label>
+            <select id="filterCore" class="mt-1 w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-emerald-500"></select>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Thickness (mm)</label>
+            <select id="filterThick" class="mt-1 w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-emerald-500"></select>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Grade</label>
+            <select id="filterGrade" class="mt-1 w-full rounded-xl border px-3 py-2 focus:ring-2 focus:ring-emerald-500"></select>
+          </div>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button id="resetBtn" class="rounded-xl bg-slate-100 px-3 py-2 hover:bg-slate-200">Reset filters</button>
+          <button id="downloadBtn" class="rounded-xl bg-emerald-600 text-white px-3 py-2 hover:bg-emerald-700">Download CSV (filtered)</button>
+          <span id="count" class="ml-auto text-sm text-slate-600"></span>
+        </div>
+        <p id="error" class="text-sm text-rose-600 mt-2"></p>
+      </section>
+
+      <!-- Table -->
+      <section>
+        <div class="overflow-x-auto rounded-2xl border bg-white shadow">
+          <table class="min-w-full text-sm" id="data-table">
+            <thead class="bg-slate-100/80 sticky top-0">
+              <tr class="text-left">
+                <th class="p-3 cursor-pointer select-none" data-sort="product">Product <span class="inline-block text-slate-500">↕</span></th>
+                <th class="p-3 cursor-pointer select-none" data-sort="face_veneer">Face Veneer <span class="inline-block text-slate-500">↕</span></th>
+                <th class="p-3 cursor-pointer select-none text-right" data-sort="thickness_mm">Thickness (mm) <span class="inline-block text-slate-500">↕</span></th>
+                <th class="p-3 cursor-pointer select-none" data-sort="core_material">Core Material <span class="inline-block text-slate-500">↕</span></th>
+                <th class="p-3">Glue</th>
+                <th class="p-3">Weight/Board (kg)</th>
+                <th class="p-3">Chemical Dipping</th>
+                <th class="p-3">Film Face Color</th>
+                <th class="p-3">Film Face GSM</th>
+                <th class="p-3">Wire Mesh</th>
+                <th class="p-3">Grade</th>
+                <th class="p-3 cursor-pointer select-none text-right" data-sort="rate">Rate <span class="inline-block text-slate-500">↕</span></th>
+                <th class="p-3">Currency</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="text-xs text-slate-500 pb-8">Tip: Tap column headers to sort. Works offline once loaded.</footer>
+    </main>
+
+    <script>
+      const state = { data: [], filtered: [], sortKey: 'product', sortDir: 'asc' };
+
+      async function loadData() {
+        try {
+          const res = await fetch('data/products.json', { cache: 'no-store' });
+          const json = await res.json();
+          const items = Array.isArray(json) ? json : (json.items || []);
+          state.data = items.map((r, i) => ({ _id: i, ...r }));
+          initFilters(state.data);
+          applyFilters();
+          const lu = json.last_updated || json.updated_at;
+          if (lu) document.getElementById('lastUpdated').textContent = `Last updated: ${lu}`;
+        } catch (err) {
+          console.error(err);
+          document.getElementById('error').textContent = 'Could not load data/products.json. Add it to the repo and try again.';
+        }
+      }
+
+      function uniqueSorted(values) {
+        return [...new Set(values.filter(Boolean).map(v => String(v)))].sort((a, b) => a.localeCompare(b));
+      }
+
+      function fillSelect(id, options) {
+        const el = document.getElementById(id);
+        el.innerHTML = '<option value="">All</option>' + options.map(v => `<option value="${v}">${v}</option>`).join('');
+      }
+
+      function initFilters(data) {
+        fillSelect('filterProduct', uniqueSorted(data.map(d => d.product)));
+        fillSelect('filterFace', uniqueSorted(data.map(d => d.face_veneer || d.faceVeneer)));
+        fillSelect('filterCore', uniqueSorted(data.map(d => d.core_material || d.coreMaterial)));
+        fillSelect('filterThick', uniqueSorted(data.map(d => d.thickness_mm || d.thickness || d['Thickness (mm)'])));
+        fillSelect('filterGrade', uniqueSorted(data.map(d => d.grade)));
+      }
+
+      function applyFilters() {
+        const q = document.getElementById('search').value.trim().toLowerCase();
+        const fProduct = document.getElementById('filterProduct').value;
+        const fFace = document.getElementById('filterFace').value;
+        const fCore = document.getElementById('filterCore').value;
+        const fThick = document.getElementById('filterThick').value;
+        const fGrade = document.getElementById('filterGrade').value;
+
+        let rows = state.data.filter(d => {
+          const matchesSearch = !q || Object.values(d).some(v => String(v).toLowerCase().includes(q));
+          const matchProduct = !fProduct || String(d.product) === fProduct;
+          const matchFace = !fFace || String(d.face_veneer || d.faceVeneer) === fFace;
+          const matchCore = !fCore || String(d.core_material || d.coreMaterial) === fCore;
+          const matchThick = !fThick || String(d.thickness_mm || d.thickness || d['Thickness (mm)']) === fThick;
+          const matchGrade = !fGrade || String(d.grade) === fGrade;
+          return matchesSearch && matchProduct && matchFace && matchCore && matchThick && matchGrade;
+        });
+
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        const key = state.sortKey;
+        rows.sort((a, b) => {
+          const va = a[key];
+          const vb = b[key];
+          const na = parseFloat(va);
+          const nb = parseFloat(vb);
+          if (!Number.isNaN(na) && !Number.isNaN(nb)) return (na - nb) * dir;
+          return String(va || '').localeCompare(String(vb || '')) * dir;
+        });
+
+        state.filtered = rows;
+        render(rows);
+        document.getElementById('count').textContent = `${rows.length} items`;
+      }
+
+      function render(rows) {
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = rows.map(r => `
+          <tr class="border-b last:border-b-0 align-top hover:bg-slate-50">
+            <td class="p-3 font-medium">${safe(r.product)}</td>
+            <td class="p-3">${safe(r.face_veneer || r.faceVeneer)}</td>
+            <td class="p-3 text-right">${safe(r.thickness_mm || r.thickness || r['Thickness (mm)'])}</td>
+            <td class="p-3">${safe(r.core_material || r.coreMaterial)}</td>
+            <td class="p-3">${safe(r.glue)}</td>
+            <td class="p-3">${safe(r.weight_per_board_kg || r["Weight/Board"])}</td>
+            <td class="p-3">${safe(r.chemical_dipping)}</td>
+            <td class="p-3">${safe(r.film_face_color)}</td>
+            <td class="p-3">${safe(r.film_face_gsm)}</td>
+            <td class="p-3">${safe(r.wire_mesh)}</td>
+            <td class="p-3">${safe(r.grade)}</td>
+            <td class="p-3 text-right font-semibold">${formatRate(r.rate)}</td>
+            <td class="p-3">${safe(r.currency || 'INR')}</td>
+          </tr>
+        `).join('');
+      }
+
+      function safe(v) { return v == null ? '' : String(v).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
+      function formatRate(v){ if (v == null || v === '') return ''; const n = Number(v); return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : safe(v); }
+
+      function setSort(key){
+        if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+        else { state.sortKey = key; state.sortDir = 'asc'; }
+        applyFilters();
+        refreshSortUI();
+      }
+
+      function refreshSortUI(){
+        document.querySelectorAll('[data-sort]').forEach(th => {
+          const arrow = th.querySelector('span');
+          const key = th.dataset.sort;
+          if (key === state.sortKey) arrow.textContent = state.sortDir === 'asc' ? '▲' : '▼';
+          else arrow.textContent = '↕';
+        });
+      }
+
+      function resetFilters(){
+        document.querySelectorAll('select').forEach(s => s.value = '');
+        document.getElementById('search').value = '';
+        applyFilters();
+        refreshSortUI();
+      }
+
+      function toCSV(rows){
+        const headers = ['Product','Face Veneer','Thickness (mm)','Core Material','Glue','Weight/Board (kg)','Chemical Dipping','Film Face Color','Film Face GSM','Wire Mesh','Grade','Rate','Currency'];
+        const escape = (v) => {
+          const s = v == null ? '' : String(v);
+          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const lines = [headers.join(',')];
+        for (const r of rows){
+          lines.push([
+            r.product,
+            r.face_veneer || r.faceVeneer,
+            r.thickness_mm || r.thickness || r['Thickness (mm)'],
+            r.core_material || r.coreMaterial,
+            r.glue,
+            r.weight_per_board_kg || r['Weight/Board'],
+            r.chemical_dipping,
+            r.film_face_color,
+            r.film_face_gsm,
+            r.wire_mesh,
+            r.grade,
+            r.rate,
+            r.currency || 'INR'
+          ].map(escape).join(','));
+        }
+        return lines.join('\n');
+      }
+
+      function downloadCSV(){
+        const csv = toCSV(state.filtered);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'cochinwood_rates.csv';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('resetBtn').addEventListener('click', resetFilters);
+        document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+        document.querySelectorAll('[data-sort]').forEach(th => th.addEventListener('click', () => setSort(th.dataset.sort)));
+        ['search','filterProduct','filterFace','filterCore','filterThick','filterGrade'].forEach(id => {
+          const el = document.getElementById(id);
+          el.addEventListener('input', applyFilters);
+          el.addEventListener('change', applyFilters);
+        });
+        loadData();
+      });
+    </script>
+  </body>
+</html>
